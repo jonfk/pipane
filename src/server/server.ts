@@ -79,8 +79,9 @@ const AUTH_COOKIE_NAME = "pipane_auth";
 const AUTH_DISABLED = process.env.PIPANE_AUTH_DISABLED === "1";
 const AUTH_TOKEN = process.env.PIPANE_AUTH_TOKEN || randomBytes(24).toString("base64url");
 const PUBLIC_HOSTNAME = process.env.PI_PUBLIC_HOSTNAME || hostname();
-const AUTH_URL = `http://${PUBLIC_HOSTNAME}:${PORT}/auth?token=${encodeURIComponent(AUTH_TOKEN)}`;
-const REMOTE_URL = `http://${PUBLIC_HOSTNAME}:${PORT}`;
+const PUBLIC_URL = (process.env.PIPANE_PUBLIC_URL || `http://${PUBLIC_HOSTNAME}:${PORT}`).replace(/\/+$/, "");
+const AUTH_URL = `${PUBLIC_URL}/auth?token=${encodeURIComponent(AUTH_TOKEN)}`;
+const REMOTE_URL = PUBLIC_URL;
 
 function parseCookies(header: string | undefined): Record<string, string> {
 	const out: Record<string, string> = {};
