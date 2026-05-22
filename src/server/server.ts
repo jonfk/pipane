@@ -76,9 +76,11 @@ const PKG_VERSION: string = (() => {
 const PKG_NAME = "pipane";
 
 const AUTH_COOKIE_NAME = "pipane_auth";
+const AUTH_DISABLED = process.env.PIPANE_AUTH_DISABLED === "1";
 const AUTH_TOKEN = process.env.PIPANE_AUTH_TOKEN || randomBytes(24).toString("base64url");
 const PUBLIC_HOSTNAME = process.env.PI_PUBLIC_HOSTNAME || hostname();
 const AUTH_URL = `http://${PUBLIC_HOSTNAME}:${PORT}/auth?token=${encodeURIComponent(AUTH_TOKEN)}`;
+const REMOTE_URL = `http://${PUBLIC_HOSTNAME}:${PORT}`;
 
 function parseCookies(header: string | undefined): Record<string, string> {
 	const out: Record<string, string> = {};
@@ -110,6 +112,7 @@ function setAuthCookie(res: Response): void {
 }
 
 function isAuthorizedRequest(req: Pick<IncomingMessage, "socket" | "headers">): boolean {
+	if (AUTH_DISABLED) return true;
 	if (isLocalRequest(req)) return true;
 	const cookies = parseCookies(req.headers.cookie);
 	return cookies[AUTH_COOKIE_NAME] === AUTH_TOKEN;
@@ -152,6 +155,10 @@ const pingInterval = setInterval(() => {
 wss.on("close", () => { clearInterval(pingInterval); });
 
 app.get("/auth", (req: Request, res: Response) => {
+	if (AUTH_DISABLED) {
+		res.redirect("/");
+		return;
+	}
 	const token = typeof req.query.token === "string" ? req.query.token : undefined;
 	if (isLocalRequest(req) || token === AUTH_TOKEN) {
 		setAuthCookie(res);
@@ -162,6 +169,10 @@ app.get("/auth", (req: Request, res: Response) => {
 });
 
 app.use((req: Request, res: Response, next: NextFunction) => {
+	if (AUTH_DISABLED) {
+		next();
+		return;
+	}
 	if (isAuthorizedRequest(req)) {
 		if (isLocalRequest(req)) {
 			setAuthCookie(res);
@@ -397,8 +408,10 @@ server.listen(PORT, async () => {
 	log(`  v${PKG_VERSION}`);
 	log("");
 	log(`  Local:  http://localhost:${PORT}`);
-	log(`  Remote: ${AUTH_URL}`);
-	if (!process.env.PIPANE_AUTH_TOKEN) {
+	log(`  Remote: ${AUTH_DISABLED ? REMOTE_URL : AUTH_URL}`);
+	if (AUTH_DISABLED) {
+		log(`\n  Auth is disabled by PIPANE_AUTH_DISABLED=1.`);
+	} else if (!process.env.PIPANE_AUTH_TOKEN) {
 		log(`\n  Auth token is random and changes on restart.`);
 		log(`  Set PIPANE_AUTH_TOKEN to use a fixed token.`);
 	}

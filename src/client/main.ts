@@ -228,7 +228,7 @@ function renderSteeringQueue() {
 	`;
 }
 
-const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high"] as const;
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
 
 function modelSupportsThinking(model: any): boolean {
 	if (!model) return false;
@@ -249,8 +249,7 @@ function renderThinkingButton() {
 	const idx = THINKING_LEVELS.indexOf(level);
 	const nextLevel = THINKING_LEVELS[(idx + 1) % THINKING_LEVELS.length];
 
-	// 4 bars, filled up to the current level (off=0, minimal=1, low=2, medium=3, high=4)
-	const filledBars = idx; // off=0, minimal=1, low=2, medium=3, high=4
+	const filledBars = Math.max(idx, 0);
 	const title = `Thinking: ${level} (click to switch to ${nextLevel})`;
 
 	return html`
@@ -264,7 +263,7 @@ function renderThinkingButton() {
 				<path d="M9 21h6"/>
 			</svg>
 			<span class="thinking-bars" data-level="${filledBars}">
-				${[0, 1, 2, 3].map(i => html`<span class="thinking-bar ${i < filledBars ? "filled" : ""}"></span>`)}
+				${THINKING_LEVELS.slice(1).map((_, i) => html`<span class="thinking-bar ${i < filledBars ? "filled" : ""}"></span>`)}
 			</span>
 		</button>
 	`;

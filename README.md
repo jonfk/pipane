@@ -37,6 +37,12 @@ npm install -g @mariozechner/pi-coding-agent
 - A nice session picker
 - A large amount high quality "vibe-code".
 
+## Server auth
+
+Remote access is protected by an auth URL by default. Set `PIPANE_AUTH_TOKEN` to use a fixed token.
+
+If pipane is running behind a reverse proxy that handles authentication, set `PIPANE_AUTH_DISABLED=1` to disable pipane's built-in HTTP and WebSocket auth checks.
+
 ---
 
 ## License

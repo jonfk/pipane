@@ -42,14 +42,14 @@ async function startServer(envOverrides: Record<string, string>): Promise<Runnin
 	const proc = spawn(process.execPath, ["--import", "tsx", "src/server/server.ts"], {
 		cwd: process.cwd(),
 		env,
-		stdio: ["ignore", "pipe", "pipe"],
+		stdio: ["pipe", "pipe", "pipe"],
 	});
 
 	await new Promise<void>((resolve, reject) => {
 		const timeout = setTimeout(() => reject(new Error("Timed out waiting for server startup")), 15000);
 		const onData = (chunk: Buffer) => {
 			const text = chunk.toString("utf8");
-			if (text.includes("pipane server listening")) {
+			if (text.includes("Local:")) {
 				clearTimeout(timeout);
 				proc.stdout.off("data", onData);
 				proc.stderr.off("data", onData);
@@ -117,8 +117,8 @@ describe("auth guard", () => {
 		const bad = await fetch(`${server!.baseUrl}/auth?token=wrong-token`);
 		expect(bad.status).toBe(401);
 
-		const good = await fetch(`${server!.baseUrl}/auth?token=test-auth-token`);
-		expect(good.status).toBe(200);
+		const good = await fetch(`${server!.baseUrl}/auth?token=test-auth-token`, { redirect: "manual" });
+		expect(good.status).toBe(302);
 		const cookiePair = extractCookiePair(good.headers.get("set-cookie"));
 		expect(cookiePair.startsWith("pipane_auth=")).toBe(true);
 
@@ -144,7 +144,7 @@ describe("auth guard", () => {
 			});
 		});
 
-		const authResp = await fetch(`${server!.baseUrl}/auth?token=test-auth-token`);
+		const authResp = await fetch(`${server!.baseUrl}/auth?token=test-auth-token`, { redirect: "manual" });
 		const cookiePair = extractCookiePair(authResp.headers.get("set-cookie"));
 
 		await new Promise<void>((resolve, reject) => {
@@ -183,5 +183,50 @@ describe("localhost bypass", () => {
 		const res = await fetch(`${server!.baseUrl}/api/sessions`);
 		expect(res.status).toBe(200);
 		expect(res.headers.get("set-cookie") || "").toContain("pipane_auth=");
+	});
+});
+
+describe("auth disabled", () => {
+	let server: RunningServer | null = null;
+
+	beforeAll(async () => {
+		server = await startServer({
+			PIPANE_AUTH_DISABLED: "1",
+			PIPANE_DISABLE_LOCAL_BYPASS: "1",
+		});
+	});
+
+	afterAll(async () => {
+		await stopServer(server);
+		server = null;
+	});
+
+	it("allows protected HTTP endpoints without auth", async () => {
+		const root = await fetch(`${server!.baseUrl}/`);
+		expect(root.status).not.toBe(401);
+
+		const api = await fetch(`${server!.baseUrl}/api/sessions`);
+		expect(api.status).toBe(200);
+
+		const debug = await fetch(`${server!.baseUrl}/debug/pool`);
+		expect(debug.status).toBe(200);
+	});
+
+	it("allows websocket without auth", async () => {
+		await new Promise<void>((resolve, reject) => {
+			const ws = new WebSocket(server!.wsUrl);
+
+			ws.on("message", (raw) => {
+				try {
+					const msg = JSON.parse(raw.toString("utf8"));
+					expect(msg.type).toBe("init");
+					ws.close();
+					resolve();
+				} catch (err) {
+					reject(err);
+				}
+			});
+			ws.on("error", reject);
+		});
 	});
 });
